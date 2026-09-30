@@ -128,7 +128,12 @@ func Render(notes []Note, v Voice, opt Options) []float64 {
 	rng := rand.New(rand.NewSource(opt.Seed))
 	var mix []float64
 	pos := 0
-	for _, n := range notes {
+	for i, n := range notes {
+		full := n.Duration
+		// repeated pitch: end the release before the next onset so it re-articulates
+		if i+1 < len(notes) && notes[i+1].Midi == n.Midi && n.Midi != 0 {
+			n.Duration = math.Max(n.Duration-0.12, 0.05)
+		}
 		buf := v.RenderNote(n, opt, rng)
 		if end := pos + len(buf); end > len(mix) {
 			mix = append(mix, make([]float64, end-len(mix))...)
@@ -136,7 +141,7 @@ func Render(notes []Note, v Voice, opt Options) []float64 {
 		for i, s := range buf {
 			mix[pos+i] += s
 		}
-		pos += int((n.Duration + opt.Gap) * SampleRate)
+		pos += int((full + opt.Gap) * SampleRate)
 	}
 
 	mix = append(mix, make([]float64, SampleRate)...) // room for reverb tail

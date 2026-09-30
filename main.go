@@ -3,6 +3,7 @@
 //
 //	go run . -abc=examples/scale.abc -voice=tenor,alto
 //	go run . -abc=examples/runs.abc -voice=all -out=/tmp/sax -bpm=120
+//	go run . -abc=examples/scale.abc -voice=alto -play
 //	go run . -list
 package main
 
@@ -21,6 +22,7 @@ func main() {
 	voiceFlag := flag.String("voice", "tenor", "comma-separated voice names, or \"all\"")
 	list := flag.Bool("list", false, "list available voices and exit")
 	out := flag.String("out", ".", "output directory")
+	play := flag.Bool("play", false, "play through the audio device instead of writing WAV files")
 	abcFile := flag.String("abc", "", "ABC notation file to play (required)")
 	bpm := flag.Float64("bpm", 0, "tempo in quarter-note beats per minute (0 = the tune's own)")
 	opt := sax.DefaultOptions()
@@ -59,6 +61,14 @@ func main() {
 		if !ok {
 			fmt.Fprintf(os.Stderr, "unknown voice %q (try -list)\n", name)
 			os.Exit(1)
+		}
+		if *play {
+			fmt.Println("playing", v.Name)
+			if err := sax.Play(sax.Render(notes, v, opt)); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			continue
 		}
 		path := filepath.Join(*out, "sax_"+v.Name+".wav")
 		if err := sax.WriteWAV(path, sax.Render(notes, v, opt)); err != nil {
