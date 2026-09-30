@@ -6,22 +6,21 @@ A saxophone synthesizer in Go. Goal: a basic audio synthesizer (stdlib only) tha
 
 - `sax/` — the synth library (import `synth/sax`). `voice.go` voices + lookup, `synth.go` `Note`, `Options`, `Voice.RenderNote` (one note, for per-note/real-time use) and `Render` (sequence + reverb + normalise), `reverb.go`, `wav.go` (`WriteWAV`).
 - `abc/` — melody-only ABC notation parser (`abc.Parse(src)` → `Tune.Notes(bpm)` → `[]sax.Note`). C = middle C (MIDI 60). Supports K/L/M/Q/T, accidentals, key signatures & modes, ties, broken rhythm, tuplets, repeats with 1st/2nd endings, dynamics `!p!..!ff!`, inline fields; errors (with line number) on chords/unknown characters. Tests in `abc/abc_test.go`.
-- `examples/runs.abc` — the demo phrase in ABC (checked against `demoMelody` in `melody_test.go`).
-- `main.go` — test bed CLI. `melody.go` — demo melody (`demoMelody`); later: load from a text/MIDI file into `[]sax.Note`.
+- `examples/runs.abc` — four rising runs, each ending on a held note.
+- `examples/scale.abc` — a C major scale, a quick smoke test.
+- `main.go` — test bed CLI: parses an ABC file and renders it with the chosen voices.
 
 ## Run it
 
 ```
-go run . -voice=tenor,alto            # writes sax_tenor.wav, sax_alto.wav
-go run . -voice=all -out=/tmp -bpm=120
-go run . -abc=examples/runs.abc -voice=tenor,alto   # play an ABC file (-bpm overrides the tune's tempo)
+go run . -abc=examples/scale.abc -voice=tenor,alto   # writes sax_tenor.wav, sax_alto.wav
+go run . -abc=tune.abc -voice=all -out=/tmp -bpm=120  # -bpm overrides the tune's tempo
 go run . -list                        # voices
-go run . -voice=tenor -transpose=-12 -breath=1.5 -reverb=0.3
+go run . -abc=tune.abc -voice=tenor -transpose=-12 -breath=1.5 -reverb=0.3
 afplay sax_tenor.wav
 ```
 
-Output is 16-bit mono, 44.1 kHz. Refactor check: output is byte-identical to the pre-refactor renders.
-
+Output is 16-bit mono, 44.1 kHz. 
 ## How it works
 
 - Additive synthesis: up to 40 harmonics with 1/n amplitudes (sawtooth-like reed), even partials x0.8.
@@ -36,8 +35,8 @@ Output is 16-bit mono, 44.1 kHz. Refactor check: output is byte-identical to the
 - Voice: **bd2** = "bright but darker": formants `{300,250,1.0} {600,350,0.9} {1800,700,0.9} {2800,900,0.3}`, floor 0.06. Picked over `bright`, `bd1`, `bd3`.
 - Envelope (`adsr`): attack 0.05, decay 0.25, sustain 0.94, release 0.12. Earlier version sounded percussive: fast attack, big drop to sustain, and envelope applied twice to the breath noise. All fixed.
 - `breathLevel = 1.0` (was 0.5; user wanted more breath). Can go 1.5-2.0 for airier.
-- `transpose = 0`. Melody is written at sounding pitch.
-- Melody: first 16 bars of "Autumn Leaves" (E minor), from memory, played twice, second pass one octave up, final held E. Table is `demoPhrase` in `melody.go`. **Not 100% accurate**; user said fine for now.
+- `-transpose=0` by default. ABC pitch is taken literally (C = middle C).
+- No built-in melody any more; tunes come from ABC files.
 - Voices selected with `-voice`. Other voices (`base`, `bright`, `dark`, `nasal`, `honky`, `buzzy`, `bd1`, `bd3`) are still in the table.
 
 ## Real-sax analysis (2026-09-30)
@@ -45,7 +44,6 @@ Output is 16-bit mono, 44.1 kHz. Refactor check: output is byte-identical to the
 - Analysed `~/Downloads/{alto,tenor,bari}_sax.mp3` (steady-note harmonic levels; tenor is the solid data set, alto only 13 notes).
 - Tenor spectrum is explained by one envelope vs **absolute frequency** (harmonic number adds almost nothing). New voice `tenor` in `main.go` uses that measured curve (`Voice.curve`) instead of 1/n + formants. `soprano` is shifted +12 semitones into its own range (`Voice.Shift`) for comparison.
 - Fixes the thin high register of `bd2` (2nd harmonic was ~-12 dB, real ~-4 dB). Baritone has much more 1.3-2.4 kHz energy, so a bari voice would need its own curve.
-- Melody is now a 16-note rising-run phrase (user-supplied), no final held E; user will fix a few more notes later.
 
 ## Learned
 
@@ -54,7 +52,7 @@ Output is 16-bit mono, 44.1 kHz. Refactor check: output is byte-identical to the
 
 ## Ideas for next time
 
-1. Fix wrong notes in the melody (user to say which bars, or supply a lead sheet), add the B section. Write real tunes in ABC now. ABC todo: chords, slurs → legato, MIDI file reader, multiple voices.
+1. Write real tunes in ABC (e.g. "Autumn Leaves"). ABC todo: chords, slurs → legato, MIDI file reader, multiple voices.
 2. Humanise: small timing/pitch variation, tongued onsets on repeated notes, fall-off at end of long notes.
 3. Make formants shift slightly with pitch so low and high octaves sound like the same instrument.
 4. Second tune: "In a Sentimental Mood".

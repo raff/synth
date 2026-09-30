@@ -1,9 +1,8 @@
-// Command synth is a test bed for the sax package: it renders a melody with
+// Command synth is a test bed for the sax package: it renders an ABC melody with
 // one or more saxophone voices to WAV files.
 //
-//	go run . -voice=tenor,alto
-//	go run . -voice=all -out=/tmp/sax -bpm=120
-//	go run . -abc=examples/runs.abc -voice=tenor
+//	go run . -abc=examples/scale.abc -voice=tenor,alto
+//	go run . -abc=examples/runs.abc -voice=all -out=/tmp/sax -bpm=120
 //	go run . -list
 package main
 
@@ -22,8 +21,8 @@ func main() {
 	voiceFlag := flag.String("voice", "tenor", "comma-separated voice names, or \"all\"")
 	list := flag.Bool("list", false, "list available voices and exit")
 	out := flag.String("out", ".", "output directory")
-	abcFile := flag.String("abc", "", "play this ABC notation file instead of the demo melody")
-	bpm := flag.Float64("bpm", 0, "tempo in quarter-note beats per minute (0 = the tune's own, or 100 for the demo)")
+	abcFile := flag.String("abc", "", "ABC notation file to play (required)")
+	bpm := flag.Float64("bpm", 0, "tempo in quarter-note beats per minute (0 = the tune's own)")
 	opt := sax.DefaultOptions()
 	flag.Float64Var(&opt.Transpose, "transpose", opt.Transpose, "semitones added to every note")
 	flag.Float64Var(&opt.Breath, "breath", opt.Breath, "breath noise level")
@@ -39,26 +38,21 @@ func main() {
 	if *voiceFlag != "all" {
 		names = strings.Split(*voiceFlag, ",")
 	}
-	var notes []sax.Note
-	if *abcFile != "" {
-		src, err := os.ReadFile(*abcFile)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		tune, err := abc.Parse(string(src))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s: %v\n", *abcFile, err)
-			os.Exit(1)
-		}
-		notes = tune.Notes(*bpm)
-	} else {
-		b := *bpm
-		if b == 0 {
-			b = 100
-		}
-		notes = demoMelody(b)
+	if *abcFile == "" {
+		fmt.Fprintln(os.Stderr, "missing -abc=<file> (see examples/)")
+		os.Exit(2)
 	}
+	src, err := os.ReadFile(*abcFile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	tune, err := abc.Parse(string(src))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", *abcFile, err)
+		os.Exit(1)
+	}
+	notes := tune.Notes(*bpm)
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		v, ok := sax.VoiceByName(name)
