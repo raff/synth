@@ -1,0 +1,158 @@
+package sax
+
+import (
+	"math"
+	"math/rand"
+)
+
+// SampleRate of all rendered audio, in Hz.
+const SampleRate = 44100
+
+// Note is one melody event.
+type Note struct {
+	Midi     float64 // MIDI note number, 0 = rest
+	Duration float64 // seconds
+	Velocity float64 // 0..1
+}
+
+// Options are the render settings shared by all notes.
+type Options struct {
+	Transpose float64 // semitones added to every note
+	Breath    float64 // breath noise level (1 = default, 0 = none)
+	Reverb    float64 // reverb wet mix, 0..1 (Render only)
+	Gap       float64 // seconds added between consecutive notes (Render only)
+	Seed      int64   // random seed (Render only)
+}
+
+// DefaultOptions returns the settings the synth was tuned with.
+func DefaultOptions() Options {
+	return Options{Breath: 1.0, Reverb: 0.18, Gap: 0.02, Seed: 1}
+}
+
+func midiToHz(m float64) float64 { return 440 * math.Pow(2, (m-69)/12) }
+
+// adsr envelope evaluated at time t for a note lasting dur seconds.
+func adsr(t, dur float64) float64 {
+	const attack, decay, sustain, release = 0.05, 0.25, 0.94, 0.12
+	switch {
+	case t < attack:
+		x := t / attack
+		return x * x * (3 - 2*x) // smoothstep
+	case t < attack+decay:
+		return 1 - (1-sustain)*(t-attack)/decay
+	case t < dur:
+		return sustain
+	case t < dur+release:
+		return sustain * (1 - (t-dur)/release)
+	}
+	return 0
+}
+
+// RenderNote synthesizes a single note including its release tail
+// (Duration + 0.12 s of audio). Midi 0 is a rest (silence of the same length).
+// rng supplies the vibrato rate and breath noise; pass a fixed seed for
+// repeatable output.
+func (v Voice) RenderNote(n Note, opt Options, rng *rand.Rand) []float64 {
+	const release = 0.12
+	total := int((n.Duration + release) * SampleRate)
+	out := make([]float64, total)
+	if n.Midi == 0 {
+		return out
+	}
+
+	base := midiToHz(n.Midi + opt.Transpose + v.Shift)
+	const maxHarm = 40
+	phases := [maxHarm + 1]float64{}
+
+	vibRate := 5.2 + rng.Float64()*0.4
+	vibPhase := 0.0
+
+	// one-pole band-limited noise for breath
+	noiseLP := 0.0
+
+	for i := 0; i < total; i++ {
+		t := float64(i) / SampleRate
+		env := adsr(t, n.Duration)
+
+		// vibrato: starts after ~0.25s, ramps in over 0.4s, slight depth drift
+		vibDepth := 0.0
+		if t > 0.25 {
+			vibDepth = math.Min((t-0.25)/0.4, 1) * 0.35 // semitone-ish cents/100
+		}
+		vibPhase += 2 * math.Pi * vibRate / SampleRate
+		vib := math.Sin(vibPhase) * vibDepth * 0.01 // fraction of freq ~ +/-0.35%... scaled below
+
+		// pitch scoop: start ~35 cents flat, settle in 70ms
+		scoop := -0.02 * math.Exp(-t/0.03)
+
+		f0 := base * (1 + vib*3 + scoop)
+
+		// brightness follows the envelope: louder = more upper partials
+		bright := 0.45 + 0.55*env
+
+		sample := 0.0
+		for h := 1; h <= maxHarm; h++ {
+			fh := f0 * float64(h)
+			if fh > SampleRate/2-1000 {
+				break
+			}
+			phases[h] += 2 * math.Pi * fh / SampleRate
+			var amp float64
+			if v.Curve != nil {
+				amp = curveGain(fh, v.Curve)
+				amp *= math.Pow(bright, float64(h-1)*0.25)
+			} else {
+				amp = 1 / float64(h)                       // sawtooth-like reed spectrum
+				amp *= math.Pow(bright, float64(h-1)*0.25) // rolloff controlled by breath pressure
+				amp *= bodyGain(fh, v)                     // body resonances
+				if h%2 == 0 {
+					amp *= 0.8 // sax has slightly weaker even partials than a saw
+				}
+			}
+			sample += amp * math.Sin(phases[h])
+		}
+
+		// breath noise: low-passed white noise, loud at attack, quiet sustain
+		w := rng.Float64()*2 - 1
+		noiseLP += 0.35 * (w - noiseLP)
+		breath := noiseLP * (0.05 + 0.12*math.Exp(-t/0.12)) * opt.Breath
+
+		out[i] = (sample*0.35 + breath) * env * (0.3 + 0.7*n.Velocity)
+	}
+	return out
+}
+
+// Render plays notes one after another with voice v and returns mono samples
+// in -1..1, with reverb applied and the peak normalized to about -3 dB.
+func Render(notes []Note, v Voice, opt Options) []float64 {
+	rng := rand.New(rand.NewSource(opt.Seed))
+	var mix []float64
+	pos := 0
+	for _, n := range notes {
+		buf := v.RenderNote(n, opt, rng)
+		if end := pos + len(buf); end > len(mix) {
+			mix = append(mix, make([]float64, end-len(mix))...)
+		}
+		for i, s := range buf {
+			mix[pos+i] += s
+		}
+		pos += int((n.Duration + opt.Gap) * SampleRate)
+	}
+
+	mix = append(mix, make([]float64, SampleRate)...) // room for reverb tail
+	if opt.Reverb > 0 {
+		mix = reverb(mix, opt.Reverb)
+	}
+
+	peak := 0.0
+	for _, s := range mix {
+		peak = math.Max(peak, math.Abs(s))
+	}
+	if peak > 0 {
+		g := 0.7 / peak
+		for i := range mix {
+			mix[i] *= g
+		}
+	}
+	return mix
+}
