@@ -4,8 +4,10 @@ A saxophone synthesizer in Go. Goal: a basic audio synthesizer (stdlib only) tha
 
 ## Layout
 
-- `sax/` — the synth library (import `synth/sax`). `voice.go` voices + lookup, `synth.go` `Note`, `Options`, `Voice.RenderNote` (one note, for per-note/real-time use) and `Render` (sequence + reverb + normalise), `reverb.go`, `wav.go` (`WriteWAV`).
-- `abc/` — melody-only ABC notation parser (`abc.Parse(src)` → `Tune.Notes(bpm)` → `[]sax.Note`). C = middle C (MIDI 60). Supports K/L/M/Q/T, accidentals, key signatures & modes, ties, broken rhythm, tuplets, repeats with 1st/2nd endings, dynamics `!p!..!ff!`, inline fields; errors (with line number) on chords/unknown characters. Tests in `abc/abc_test.go`.
+- `audio/` — shared by all instruments: `Note`, `Options`, `SampleRate`, `MidiToHz`, `Reverb`/`Finish` (reverb + normalise), `WriteWAV`, `Play`.
+- `sax/` — the sax synth (import `synth/sax`). `voice.go` voices + lookup, `synth.go` `Voice.RenderNote` (one note, for per-note/real-time use) and `Render` (sequence + reverb + normalise).
+- `piano/` — additive piano (`piano.Render(notes, opts)`, `-piano` flag): inharmonic partials, 3 detuned strings, two-stage decay.
+- `abc/` — melody-only ABC notation parser (`abc.Parse(src)` → `Tune.Notes(bpm)` → `[]audio.Note`). C = middle C (MIDI 60). Supports K/L/M/Q/T, accidentals, key signatures & modes, ties, broken rhythm, tuplets, repeats with 1st/2nd endings, dynamics `!p!..!ff!`, inline fields; errors (with line number) on chords/unknown characters. Tests in `abc/abc_test.go`.
 - `examples/runs.abc` — four rising runs, each ending on a held note.
 - `examples/scale.abc` — a C major scale, a quick smoke test.
 - `main.go` — test bed CLI: parses an ABC file and renders it with the chosen voices.

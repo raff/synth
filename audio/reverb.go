@@ -1,7 +1,9 @@
-package sax
+package audio
 
-// reverb is a tiny Schroeder-style reverb (4 combs + 2 allpasses).
-func reverb(in []float64, mix float64) []float64 {
+import "math"
+
+// Reverb is a tiny Schroeder-style reverb (4 combs + 2 allpasses).
+func Reverb(in []float64, mix float64) []float64 {
 	combDelays := []int{1557, 1617, 1491, 1422}
 	combFb := 0.78
 	out := make([]float64, len(in))
@@ -31,4 +33,23 @@ func reverb(in []float64, mix float64) []float64 {
 		res[i] = in[i]*(1-mix) + out[i]*mix
 	}
 	return res
+}
+
+// Finish pads mix for the reverb tail, applies reverb (if wet > 0) and
+// normalizes the peak to 0.7.
+func Finish(mix []float64, wet float64) []float64 {
+	mix = append(mix, make([]float64, SampleRate)...)
+	if wet > 0 {
+		mix = Reverb(mix, wet)
+	}
+	peak := 0.0
+	for _, s := range mix {
+		peak = math.Max(peak, math.Abs(s))
+	}
+	if peak > 0 {
+		for i := range mix {
+			mix[i] *= 0.7 / peak
+		}
+	}
+	return mix
 }

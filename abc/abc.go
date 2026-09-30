@@ -1,4 +1,4 @@
-// Package abc parses a melody-only subset of ABC notation into sax.Notes.
+// Package abc parses a melody-only subset of ABC notation into audio.Notes.
 //
 // Supported: header fields X T M L Q K (K ends the header; the key signature
 // and modes are honoured), notes with accidentals (^ ^^ _ __ =), octave marks
@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"synth/sax"
+	"synth/audio"
 )
 
 // DefaultVelocity is used until a dynamics decoration changes it.
@@ -39,16 +39,16 @@ type Tune struct {
 	WholeNote float64
 }
 
-// Notes converts the tune to sax.Notes. quarterBPM overrides the tempo of the
+// Notes converts the tune to audio.Notes. quarterBPM overrides the tempo of the
 // tune if > 0 (beats per minute, counting quarter notes).
-func (t *Tune) Notes(quarterBPM float64) []sax.Note {
+func (t *Tune) Notes(quarterBPM float64) []audio.Note {
 	whole := t.WholeNote
 	if quarterBPM > 0 {
 		whole = 4 * 60 / quarterBPM
 	}
-	notes := make([]sax.Note, len(t.Events))
+	notes := make([]audio.Note, len(t.Events))
 	for i, e := range t.Events {
-		notes[i] = sax.Note{Midi: e.Midi, Duration: e.Duration * whole, Velocity: e.Velocity}
+		notes[i] = audio.Note{Midi: e.Midi, Duration: e.Duration * whole, Velocity: e.Velocity}
 	}
 	return notes
 }

@@ -3,33 +3,9 @@ package sax
 import (
 	"math"
 	"math/rand"
+
+	. "synth/audio"
 )
-
-// SampleRate of all rendered audio, in Hz.
-const SampleRate = 44100
-
-// Note is one melody event.
-type Note struct {
-	Midi     float64 // MIDI note number, 0 = rest
-	Duration float64 // seconds
-	Velocity float64 // 0..1
-}
-
-// Options are the render settings shared by all notes.
-type Options struct {
-	Transpose float64 // semitones added to every note
-	Breath    float64 // breath noise level (1 = default, 0 = none)
-	Reverb    float64 // reverb wet mix, 0..1 (Render only)
-	Gap       float64 // seconds added between consecutive notes (Render only)
-	Seed      int64   // random seed (Render only)
-}
-
-// DefaultOptions returns the settings the synth was tuned with.
-func DefaultOptions() Options {
-	return Options{Breath: 1.0, Reverb: 0.18, Gap: 0.02, Seed: 1}
-}
-
-func midiToHz(m float64) float64 { return 440 * math.Pow(2, (m-69)/12) }
 
 // adsr envelope evaluated at time t for a note lasting dur seconds.
 func adsr(t, dur float64) float64 {
@@ -60,7 +36,7 @@ func (v Voice) RenderNote(n Note, opt Options, rng *rand.Rand) []float64 {
 		return out
 	}
 
-	base := midiToHz(n.Midi + opt.Transpose + v.Shift)
+	base := MidiToHz(n.Midi + opt.Transpose + v.Shift)
 	const maxHarm = 40
 	phases := [maxHarm + 1]float64{}
 
@@ -143,21 +119,5 @@ func Render(notes []Note, v Voice, opt Options) []float64 {
 		}
 		pos += int((full + opt.Gap) * SampleRate)
 	}
-
-	mix = append(mix, make([]float64, SampleRate)...) // room for reverb tail
-	if opt.Reverb > 0 {
-		mix = reverb(mix, opt.Reverb)
-	}
-
-	peak := 0.0
-	for _, s := range mix {
-		peak = math.Max(peak, math.Abs(s))
-	}
-	if peak > 0 {
-		g := 0.7 / peak
-		for i := range mix {
-			mix[i] *= g
-		}
-	}
-	return mix
+	return Finish(mix, opt.Reverb)
 }

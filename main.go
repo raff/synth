@@ -4,6 +4,7 @@
 //	go run . -abc=examples/scale.abc -voice=tenor,alto
 //	go run . -abc=examples/runs.abc -voice=all -out=/tmp/sax -bpm=120
 //	go run . -abc=examples/scale.abc -voice=alto -play
+//	go run . -abc=examples/scale.abc -piano
 //	go run . -list
 package main
 
@@ -15,6 +16,8 @@ import (
 	"strings"
 
 	"synth/abc"
+	"synth/audio"
+	"synth/piano"
 	"synth/sax"
 )
 
@@ -23,9 +26,10 @@ func main() {
 	list := flag.Bool("list", false, "list available voices and exit")
 	out := flag.String("out", ".", "output directory")
 	play := flag.Bool("play", false, "play through the audio device instead of writing WAV files")
+	pianoFlag := flag.Bool("piano", false, "render with the piano voice instead of the saxophones")
 	abcFile := flag.String("abc", "", "ABC notation file to play (required)")
 	bpm := flag.Float64("bpm", 0, "tempo in quarter-note beats per minute (0 = the tune's own)")
-	opt := sax.DefaultOptions()
+	opt := audio.DefaultOptions()
 	flag.Float64Var(&opt.Transpose, "transpose", opt.Transpose, "semitones added to every note")
 	flag.Float64Var(&opt.Breath, "breath", opt.Breath, "breath noise level")
 	flag.Float64Var(&opt.Reverb, "reverb", opt.Reverb, "reverb wet mix 0..1")
@@ -55,6 +59,23 @@ func main() {
 		os.Exit(1)
 	}
 	notes := tune.Notes(*bpm)
+	if *pianoFlag {
+		pcm := piano.Render(notes, opt)
+		if *play {
+			if err := audio.Play(pcm); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return
+		}
+		path := filepath.Join(*out, "piano.wav")
+		if err := audio.WriteWAV(path, pcm); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println("wrote", path)
+		return
+	}
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		v, ok := sax.VoiceByName(name)
@@ -64,14 +85,14 @@ func main() {
 		}
 		if *play {
 			fmt.Println("playing", v.Name)
-			if err := sax.Play(sax.Render(notes, v, opt)); err != nil {
+			if err := audio.Play(sax.Render(notes, v, opt)); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 			continue
 		}
 		path := filepath.Join(*out, "sax_"+v.Name+".wav")
-		if err := sax.WriteWAV(path, sax.Render(notes, v, opt)); err != nil {
+		if err := audio.WriteWAV(path, sax.Render(notes, v, opt)); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

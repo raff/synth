@@ -1,4 +1,4 @@
-package sax
+package audio
 
 import (
 	"encoding/binary"

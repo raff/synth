@@ -12,8 +12,8 @@
 // Basic use:
 //
 //	v, _ := sax.VoiceByName("tenor")
-//	pcm := sax.Render([]sax.Note{{Midi: 60, Duration: 1, Velocity: 0.8}}, v, sax.DefaultOptions())
-//	sax.WriteWAV("out.wav", pcm)
+//	pcm := sax.Render([]audio.Note{{Midi: 60, Duration: 1, Velocity: 0.8}}, v, audio.DefaultOptions())
+//	audio.WriteWAV("out.wav", pcm)
 //
 // For real-time or per-note use, call Voice.RenderNote directly.
 package sax
