@@ -62,14 +62,31 @@ func render(kind VoiceKind, midi int) []float32 {
 	return ce.pcm
 }
 
-// warm renders every key (at the current octave) of every instrument in the background so the first
-// press of a key doesn't stall on synthesis.
+// warmGen identifies the latest warm request; older workers stop early.
+var warmGen atomic.Int64
+
+// warm renders every key (at the current octave) of every instrument in the
+// background so the first press of a key doesn't stall on synthesis. It uses
+// a single worker, current voice first, so it can't starve the audio callback
+// (or a playing tune) of CPU; a newer call supersedes a running one.
 func warm() {
-	for _, k := range allKeys {
-		for kind := VoicePiano; kind <= VoiceSoprano; kind++ {
-			go render(kind, k.pitch())
-		}
+	gen := warmGen.Add(1)
+	cur := appData.voice
+	pitches := make([]int, len(allKeys))
+	for i, k := range allKeys {
+		pitches[i] = k.pitch()
 	}
+	go func() {
+		for i := range VoiceSoprano + 1 {
+			kind := (cur + i) % (VoiceSoprano + 1)
+			for _, p := range pitches {
+				if warmGen.Load() != gen {
+					return
+				}
+				render(kind, p)
+			}
+		}
+	}()
 }
 
 // bufVoice plays a cached buffer; Release fades it out.

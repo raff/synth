@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	app "go.hasen.dev/shirei/app"
 	"go.hasen.dev/shirei/audio"
@@ -188,8 +189,22 @@ func handleKeyboard() {
 }
 
 func main() {
+	// The Metal renderer in shirei v0.8.0 crashes on Intel Macs, so default
+	// to the software renderer there. SHIREI_GPU in the environment is
+	// respected unless -gpu is given explicitly.
+	gpu := flag.Bool("gpu", !(runtime.GOOS == "darwin" && runtime.GOARCH == "amd64"), "use the GPU renderer (default: false on Intel Macs)")
 	png := flag.String("png", "", "write one settled frame to PATH and exit")
 	flag.Parse()
+
+	gpuSet := false
+	flag.Visit(func(f *flag.Flag) { gpuSet = gpuSet || f.Name == "gpu" })
+	if _, env := os.LookupEnv("SHIREI_GPU"); gpuSet || !env {
+		if *gpu {
+			os.Setenv("SHIREI_GPU", "1")
+		} else {
+			os.Setenv("SHIREI_GPU", "0")
+		}
+	}
 
 	if *png != "" {
 		if err := RenderToPNG(*png, winW, winH, RootView); err != nil {
