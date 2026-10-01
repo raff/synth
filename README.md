@@ -10,6 +10,7 @@ A saxophone synthesizer in Go. Goal: a basic audio synthesizer (stdlib only) tha
 - `abc/` — melody-only ABC notation parser (`abc.Parse(src)` → `Tune.Notes(bpm)` → `[]audio.Note`). C = middle C (MIDI 60). Supports K/L/M/Q/T, accidentals, key signatures & modes, ties, broken rhythm, tuplets, repeats with 1st/2nd endings, dynamics `!p!..!ff!`, inline fields; errors (with line number) on chords/unknown characters. Tests in `abc/abc_test.go`.
 - `examples/runs.abc` — four rising runs, each ending on a held note.
 - `examples/scale.abc` — a C major scale, a quick smoke test.
+- `cmd/keyboard/` — playable one-row keyboard GUI (own module, uses [shirei](https://go.hasen.dev/shirei)): piano and tenor/alto/soprano sax voices, play with mouse/touch/computer keys, or **Load** an ABC file and **Play** it (keys light up). `cd cmd/keyboard && go run .`
 - `main.go` — test bed CLI: parses an ABC file and renders it with the chosen voices.
 
 ## Run it
