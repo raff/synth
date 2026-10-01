@@ -62,12 +62,12 @@ func render(kind VoiceKind, midi int) []float32 {
 	return ce.pcm
 }
 
-// warm renders every key of every instrument in the background so the first
+// warm renders every key (at the current octave) of every instrument in the background so the first
 // press of a key doesn't stall on synthesis.
 func warm() {
 	for _, k := range allKeys {
 		for kind := VoicePiano; kind <= VoiceSoprano; kind++ {
-			go render(kind, k.Midi)
+			go render(kind, k.pitch())
 		}
 	}
 }

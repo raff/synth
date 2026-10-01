@@ -7,6 +7,8 @@
 //	W E   T Y U   O P        ← C#4 D#4  F#4 G#4 A#4  C#5 D#5
 //	A S D F G H J K L ; '    ← C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5
 //
+// The keyboard spans C4–C6; keys past F5 are mouse/touch only.
+//
 // Multi-touch: each finger can hold a different key (glissando / chords) via
 // IsTouchedDirectly, in parallel with mouse/keyboard.
 package main
@@ -38,7 +40,7 @@ type PianoKey struct {
 var (
 	whitePhys    = "ASDFGHJKL;'"
 	boundaryPhys = "WERTYUIOP[" // physical key above the boundary between white i and i+1
-	whiteOffsets = []int{0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17}
+	whiteOffsets = []int{0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24}
 	baseMidi     = 60 // C4 on the leftmost white key
 )
 
@@ -50,21 +52,25 @@ func noteName(midi int) string {
 	return fmt.Sprintf("%s%d", noteNames[midi%12], midi/12-1)
 }
 
+// physKey returns the computer key at index i of keys, or none past the end
+// (the extra keys are played with the mouse or touch only).
+func physKey(keys string, i int) (string, KeyCode) {
+	if i >= len(keys) {
+		return "", 0
+	}
+	return string(keys[i]), KeyCode(keys[i])
+}
+
 func init() {
 	for i, off := range whiteOffsets {
 		midi := baseMidi + off
-		whiteKeys = append(whiteKeys, &PianoKey{
-			Name: noteName(midi), Phys: string(whitePhys[i]),
-			Code: KeyCode(whitePhys[i]), Midi: midi, Slot: i,
-		})
+		phys, code := physKey(whitePhys, i)
+		whiteKeys = append(whiteKeys, &PianoKey{Name: noteName(midi), Phys: phys, Code: code, Midi: midi, Slot: i})
 		// a black key exists between two whites a whole tone apart
 		if i+1 < len(whiteOffsets) && whiteOffsets[i+1]-off == 2 {
 			midi++
-			blackKeys = append(blackKeys, &PianoKey{
-				Name: noteName(midi), Phys: string(boundaryPhys[i]),
-				Code: KeyCode(boundaryPhys[i]), Midi: midi,
-				IsBlack: true, Slot: i,
-			})
+			phys, code := physKey(boundaryPhys, i)
+			blackKeys = append(blackKeys, &PianoKey{Name: noteName(midi), Phys: phys, Code: code, Midi: midi, IsBlack: true, Slot: i})
 		}
 	}
 	allKeys = append(append(allKeys, whiteKeys...), blackKeys...)
@@ -105,6 +111,7 @@ type heldNote struct {
 
 type PianoApp struct {
 	voice  VoiceKind
+	octave int // transposition of the keys, in octaves
 	volume f32
 
 	held     map[*PianoKey]*heldNote
@@ -129,7 +136,7 @@ func syncKey(k *PianoKey, byKB, byTouch bool) bool {
 	h := appData.held[k]
 	if byKB || byTouch {
 		if h == nil {
-			v := makeVoice(appData.voice, k.Midi)
+			v := makeVoice(appData.voice, k.pitch())
 			mixer.Add(v)
 			h = &heldNote{voice: v}
 			appData.held[k] = h
@@ -143,6 +150,16 @@ func syncKey(k *PianoKey, byKB, byTouch bool) bool {
 		delete(appData.held, k)
 	}
 	return false
+}
+
+// pitch is the key's MIDI note after octave transposition.
+func (k *PianoKey) pitch() int { return k.Midi + 12*appData.octave }
+
+// shiftOctave transposes the keys by d octaves (within ±2).
+func shiftOctave(d int) {
+	releaseAll()
+	appData.octave = max(-2, min(2, appData.octave+d))
+	warm()
 }
 
 func releaseAll() {

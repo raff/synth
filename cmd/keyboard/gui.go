@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"go.hasen.dev/shirei/ext/darkmode"
-	"image"
-	"image/draw"
-	_ "image/png"
 	"path/filepath"
 
 	. "go.hasen.dev/shirei"
@@ -32,19 +28,6 @@ var (
 	layBlackH f32 = 128
 )
 
-// appIcon is the embedded dock icon as RGBA for in-UI ImageView.
-var appIcon *image.RGBA
-
-func init() {
-	img, _, err := image.Decode(bytes.NewReader(iconPNG))
-	if err != nil {
-		return
-	}
-	b := img.Bounds()
-	appIcon = image.NewRGBA(b)
-	draw.Draw(appIcon, b, img, b.Min, draw.Src)
-}
-
 func RootView() {
 	SetDarkMode(darkmode.OSDarkMode())
 
@@ -65,18 +48,20 @@ func RootView() {
 	})
 }
 
-// TitleBar is the single chrome row: icon + title, voice picker (left-middle),
+// TitleBar is the single chrome row: octave buttons, voice picker, Load/Play,
 // volume slider flush right.
 //
-//	[icon] Keyboard ··· [voice] · [========●== volume]
+//	[Oct −] [Oct +]  [voice]  [Load] [Play] ··· [========●== volume]
 func TitleBar() {
 	// Explicit NoAnimate: pin the mask even if a parent ever re-enables anim.
 	Container(Attrs(Row, CrossMid, Expand, Gap(10), Pad2(8, 12), UseSurface(SurfaceToolbar), NoAnimate), func() {
-		if appIcon != nil {
-			ImageView(UseImage("piano-app-icon", appIcon), Vec2{22, 22})
+		if CtrlButton(NoIcon, "Oct −", appData.octave > -2) {
+			shiftOctave(-1)
 		}
-		Label("Keyboard", FontSize(15), FontWeight(WeightBold))
-		Spacer(16)
+		if CtrlButton(NoIcon, "Oct +", appData.octave < 2) {
+			shiftOctave(1)
+		}
+		Spacer(12)
 		SegmentedControl(&appData.voice, func() {
 			SegmentedCell("Piano", VoicePiano)
 			SegmentedCell("Tenor", VoiceTenor)
@@ -180,7 +165,7 @@ func keyInteraction(k *PianoKey) bool {
 		byPointer = IsActive()
 	}
 	byKB := appData.kbDown[k.Code]
-	return syncKey(k, byKB, byPointer) || tuneSounding(k.Midi)
+	return syncKey(k, byKB, byPointer) || tuneSounding(k.pitch())
 }
 
 func PianoKeyView(k *PianoKey) {
@@ -213,7 +198,7 @@ func PianoKeyView(k *PianoKey) {
 		Filler(1)
 		// Computer-key hints only when a physical keyboard is attached
 		// (Host.HardwareKeyboard). Soft-IME-only phones hide them.
-		if GetHost().HardwareKeyboard {
+		if GetHost().HardwareKeyboard && k.Phys != "" {
 			KeycapChip(k.Phys, k.IsBlack, pressed)
 			Spacer(5)
 		}
@@ -224,10 +209,10 @@ func PianoKeyView(k *PianoKey) {
 			nameSize = 7
 		}
 		if k.IsBlack {
-			Label(k.Name, FontSize(nameSize-1), TextColor(220, 10, 75, 1))
+			Label(noteName(k.pitch()), FontSize(nameSize-1), TextColor(220, 10, 75, 1))
 			Spacer(6)
 		} else {
-			Label(k.Name, FontSize(nameSize), TextColor(220, 10, 45, 1))
+			Label(noteName(k.pitch()), FontSize(nameSize), TextColor(220, 10, 45, 1))
 			Spacer(8)
 		}
 	})
