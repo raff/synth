@@ -72,8 +72,7 @@ func togglePlay() {
 				continue
 			}
 			m := int(n.Midi)
-			v := makeVoice(VoiceKind(playVoice.Load()), m)
-			mixer.Add(v)
+			v := makeVoice(VoiceKind(playVoice.Load()), m, n.Velocity)
 			setSounding(m, true)
 			time.Sleep(d)
 			v.Release()

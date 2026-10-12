@@ -18,6 +18,7 @@ type Note struct {
 type Options struct {
 	Transpose float64 // semitones added to every note
 	Breath    float64 // breath noise level (1 = default, 0 = none); sax only
+	Vibrato   float64 // vibrato depth (1 = the original ±15 cents, 0 = straight tone); sax only
 	Reverb    float64 // reverb wet mix, 0..1 (Render only)
 	Gap       float64 // seconds added between consecutive notes (Render only)
 	Seed      int64   // random seed (Render only)
@@ -25,7 +26,7 @@ type Options struct {
 
 // DefaultOptions returns the settings the synth was tuned with.
 func DefaultOptions() Options {
-	return Options{Breath: 1.0, Reverb: 0.18, Gap: 0.02, Seed: 1}
+	return Options{Breath: 1.0, Vibrato: 0.3, Reverb: 0.18, Gap: 0.02, Seed: 1}
 }
 
 // MidiToHz converts a MIDI note number to frequency.

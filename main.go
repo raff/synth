@@ -32,6 +32,7 @@ func main() {
 	opt := audio.DefaultOptions()
 	flag.Float64Var(&opt.Transpose, "transpose", opt.Transpose, "semitones added to every note")
 	flag.Float64Var(&opt.Breath, "breath", opt.Breath, "breath noise level")
+	flag.Float64Var(&opt.Vibrato, "vibrato", opt.Vibrato, "vibrato depth (0 = straight tone, 1 = wide)")
 	flag.Float64Var(&opt.Reverb, "reverb", opt.Reverb, "reverb wet mix 0..1")
 	flag.Parse()
 

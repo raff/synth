@@ -6,7 +6,9 @@
 //   - brightness that follows loudness
 //   - delayed, gradually growing vibrato
 //   - breath noise, strongest at the attack
-//   - a small pitch "scoop" up into each note
+//   - a small pitch "scoop" up into a note that follows a gap
+//   - slurred transitions: notes with no gap glide and keep the breath going
+//     (see Player) instead of getting a new attack each time
 //   - a touch of room reverb
 //
 // Basic use:
@@ -15,7 +17,7 @@
 //	pcm := sax.Render([]audio.Note{{Midi: 60, Duration: 1, Velocity: 0.8}}, v, audio.DefaultOptions())
 //	audio.WriteWAV("out.wav", pcm)
 //
-// For real-time or per-note use, call Voice.RenderNote directly.
+// For per-note use, call Voice.RenderNote; for real time, use Player.
 package sax
 
 import (

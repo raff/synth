@@ -20,7 +20,6 @@ import (
 	"runtime"
 
 	app "go.hasen.dev/shirei/app"
-	"go.hasen.dev/shirei/audio"
 
 	. "go.hasen.dev/shirei"
 )
@@ -93,12 +92,9 @@ func (k VoiceKind) String() string {
 	return [...]string{"piano", "tenor", "alto", "soprano"}[k]
 }
 
-// Note is what this app holds between note-on and note-off: a mixable
-// voice that also understands release. audio.Voice is deliberately just
-// the mixable unit; note-off is our concept, and every shipped voice
-// satisfies this structurally.
+// Note is what this app holds between note-on and note-off. The sound
+// itself is already in the mixer (see makeVoice).
 type Note interface {
-	audio.Voice
 	Release()
 }
 
@@ -127,8 +123,15 @@ var appData = &PianoApp{
 	kbDown: map[KeyCode]bool{},
 }
 
-func makeVoice(kind VoiceKind, midi int) Note {
-	return &bufVoice{pcm: render(kind, midi)}
+// makeVoice starts a note and returns its handle; the voice is already in the
+// mixer. The piano gets a cached buffer per pitch, the saxes a shared Player.
+func makeVoice(kind VoiceKind, midi int, vel float64) Note {
+	if kind == VoicePiano {
+		v := &bufVoice{pcm: render(midi)}
+		mixer.Add(v)
+		return v
+	}
+	return saxPress(kind, midi, vel)
 }
 
 // syncKey starts or stops a note so that it sounds iff byKB || byTouch.
@@ -137,8 +140,7 @@ func syncKey(k *PianoKey, byKB, byTouch bool) bool {
 	h := appData.held[k]
 	if byKB || byTouch {
 		if h == nil {
-			v := makeVoice(appData.voice, k.pitch())
-			mixer.Add(v)
+			v := makeVoice(appData.voice, k.pitch(), 0.8)
 			h = &heldNote{voice: v}
 			appData.held[k] = h
 		}
