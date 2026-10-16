@@ -14,12 +14,11 @@ const (
 	attackTime   = 0.035 // s, smoothstep rise of an articulated note
 	decayTime    = 0.3   // s, settle from peak to sustain
 	sustainLevel = 0.85  // fraction of peak
-	legatoWindow = 0.06  // s: a note starting this soon after a release is still the same breath
+	legatoWindow = 0.03  // s: a note starting this soon after a release is still the same breath
 	releaseTau   = 0.02  // s, exponential fade after note-off
-	glideTau     = 0.014 // s, pitch glide between legato notes
-	gainTau      = 0.02  // s, spectrum cross-fade between legato notes
-	dipDur       = 0.04  // s, finger-movement dip in level on a legato change
-	dipDepth     = 0.1
+	glideTau     = 0.005 // s, pitch glide between legato notes
+	gainTau      = 0.012 // s, spectrum cross-fade between legato notes
+	dipDur       = 0.05  // s, finger-movement dip in level on a legato change
 )
 
 // Player is a monophonic, streaming saxophone: one breath that keeps going
@@ -48,6 +47,7 @@ type Player struct {
 	sinceRelease   float64
 	burst          float64 // decaying onset brightness/noise, 0..1
 	scoopDepth     float64
+	dipDepth       float64 // level dip on a legato change
 	dipT           float64 // s into a legato dip; >= dipDur when idle
 
 	vibPhase, vibRate float64
@@ -134,8 +134,13 @@ func (p *Player) NoteOn(midi, velocity float64) {
 		p.tAttack = 0.6 * attackTime
 		p.burst = 0.5
 	default: // slur
-		p.tAttack = math.Max(p.tAttack, attackTime+decayTime)
-		p.burst = math.Max(p.burst, 0.12)
+		// soft articulation: the breath dips and re-swells a little, like
+		// a lightly tongued/fingered change, rather than a seamless synth glide
+		// higher notes are articulated more: a seamless high slur sounds synthetic
+		hi := math.Max(0, math.Min(1, (base-400)/600))
+		p.tAttack = (0.5 - 0.3*hi) * attackTime
+		p.burst = math.Max(p.burst, 0.3+0.3*hi)
+		p.dipDepth = 0.3 + 0.25*hi
 		p.dipT = 0
 	}
 	p.fTarget = base
@@ -181,7 +186,7 @@ func (p *Player) Next() float64 {
 	dip := 1.0
 	if p.dipT < dipDur {
 		p.dipT += dt
-		dip = 1 - dipDepth*math.Sin(math.Pi*p.dipT/dipDur)
+		dip = 1 - p.dipDepth*math.Sin(math.Pi*p.dipT/dipDur)
 	}
 	p.lvl += (p.lvlT - p.lvl) * p.kGain
 
